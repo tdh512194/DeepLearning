@@ -27,7 +27,7 @@ class Unet(nn.Module):
             nn.BatchNorm2d(1024),
             nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=3),
             nn.ReLU(),
-            nn.BatchNorm1d(1024),
+            nn.BatchNorm2d(1024),
             nn.ConvTranspose2d(in_channels=1024, out_channels=512, kernel_size=3, stride=2, output_padding=1)
         )
 
@@ -41,7 +41,7 @@ class Unet(nn.Module):
 
     def forward(self, x):
         # Encode layer
-        encode_block1 = self.conv_decode1(x)
+        encode_block1 = self.conv_encode1(x)
         encode_pool1 = self.maxpool1(encode_block1)
         encode_block2 = self.conv_encode2(encode_pool1)
         encode_pool2 = self.maxpool2(encode_block2)
@@ -60,7 +60,7 @@ class Unet(nn.Module):
         decode_block2 = self.conv_decode2(concat_block2)
         concat_block1 = self.crop_and_concat(decode_block2, encode_block1, crop=True)
         # Output layer
-        output = self.output_block(concat_block1)
+        output = self.output(concat_block1)
         return output
 
     def down_sampling_block(self, in_channels, out_channels, kernel_size=3):
@@ -68,9 +68,9 @@ class Unet(nn.Module):
             nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(out_channels),
-            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size),
+            nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size),
             nn.ReLU(),
-            nn.BatchNorm2d(out_channels=out_channels)
+            nn.BatchNorm2d(out_channels)
         )
         return block
 
@@ -97,8 +97,8 @@ class Unet(nn.Module):
             nn.BatchNorm2d(mid_channels),
             nn.Conv2d(in_channels=mid_channels, out_channels=mid_channels, kernel_size=kernel_size),
             nn.ReLU(),
-            nn.BatchNorm2d(),
-            nn.Conv2d(in_channels=mid_channels, out_channels=out_channels, padding=1),
+            nn.BatchNorm2d(mid_channels),
+            nn.Conv2d(in_channels=mid_channels, out_channels=out_channels, padding=1, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(out_channels)
         )
@@ -110,8 +110,8 @@ class Unet(nn.Module):
         """
         if crop:
             # calculate excessive size of each side (/2)
-            pad_size = (crop_from.size()[2] - upsampled.size()[2]) // 2
+            crop_size = (crop_from.size()[2] - upsampled.size()[2]) // 2
             # crop to the 2 last dimentions (left, right, top, bottom) as in torch.nn.F.pad()
-            crop_from = F.pad(crop_from, (-c, -c, -c, -c))
+            crop_from = F.pad(crop_from, (-crop_size, -crop_size, -crop_size, -crop_size))
         block = torch.cat((crop_from, upsampled), dim=1)
         return block
