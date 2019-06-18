@@ -1,14 +1,75 @@
+import os
+import json
 import torch
 from torch import nn
 import torch.nn.functional as F
+import torchvision
+from skimage import io
+import numpy as np
 
+class Unet():
+    '''
+    U-net class
+    '''
 
-class Unet(nn.Module):
+    def __init__(self, config_path, weights_path=None, is_training=False):
+        with open(config_path) as config_file:
+            self.config = json.load(config_file)
+        self.config['config_path'] = config_path
+        # initialize Unet model
+        self.model = UnetModel(in_channels=self.config['in_channels'],
+                               out_channels=self.config['out_channels'])
+        print('Unet model initialized.')
+        # define preprocess methods
+        self.transform_preprocess = torchvision.transforms.Compose([
+            torchvision.transforms.Resize((self.config['height_in'], self.config['width_in'])),
+            torchvision.transforms.ToTensor()
+        ])
+        # load weights
+        self.weights_path = weights_path
+        if self.weights_path:
+            self.model.load_state_dict(torch.load(self.weights_path))
+            print('weights {} loaded.'.format(os.path.basename(self.weights_path)))
+        else:
+            print('No weights added.')
+        # set train or eval mode for layers such as Dropout and Batchnorm
+        self.is_training = is_training
+        if self.is_training:
+            self.model.train()
+            print('TRAIN mode.')
+        else:
+            self.model.eval()
+            print('EVAL mode.')
+
+    def process(self, x):
+        """
+        inference only, x can be either path to image or numpy array
+        """
+        if isinstance(x, str):
+            x = io.imread(x)
+        elif not isinstance(x, np.ndarray):
+            print('input should be a path to image or a numpy array')
+            return None
+        self.model.eval()
+        x = self.preprocess(x)
+        output = self.model(x)
+        # set back to train mode to model if neccessary
+        if self.is_training:
+            self.model.train()
+        return output
+        
+    def preprocess(self, x):
+        return self.transform_preprocess(x)
+    
+    def postprocess(self, x):
+        return x
+
+class UnetModel(nn.Module):
     '''
     U-net architecture
     '''
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels=3, out_channels=2):
         super(Unet, self).__init__()
         # Encode layers
         self.conv_encode1 = self.down_sampling_block(in_channels, out_channels=64)
@@ -28,7 +89,8 @@ class Unet(nn.Module):
             nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=3),
             nn.ReLU(),
             nn.BatchNorm2d(1024),
-            nn.ConvTranspose2d(in_channels=1024, out_channels=512, kernel_size=3, stride=2, output_padding=1)
+            nn.ConvTranspose2d(in_channels=1024, out_channels=512, kernel_size=3, 
+                               stride=2, output_padding=1)
         )
 
         # Decode layers
@@ -84,7 +146,8 @@ class Unet(nn.Module):
             nn.Conv2d(in_channels=mid_channels, out_channels=mid_channels, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(mid_channels),
-            nn.ConvTranspose2d(in_channels=mid_channels, out_channels=out_channels, kernel_size=kernel_size, stride=2, padding=1, output_padding=1)  
+            nn.ConvTranspose2d(in_channels=mid_channels, out_channels=out_channels, kernel_size=kernel_size, 
+                               stride=2, padding=1, output_padding=1)  
         )
         return block
     
