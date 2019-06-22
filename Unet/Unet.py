@@ -1,10 +1,10 @@
 import os
 import json
+import cv2
 import torch
 from torch import nn
 import torch.nn.functional as F
 import torchvision
-from skimage import io
 import numpy as np
 
 class Unet():
@@ -46,7 +46,7 @@ class Unet():
         inference only, x can be either path to image or numpy array
         """
         if isinstance(x, str):
-            x = io.imread(x)
+            x = cv2.imread(x)
         elif not isinstance(x, np.ndarray):
             print('input should be a path to image or a numpy array')
             return None
