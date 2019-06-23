@@ -6,6 +6,8 @@ from torch import nn
 import torch.nn.functional as F
 import torchvision
 import numpy as np
+from utils import transform_preprocess
+from PIL import Image
 
 class Unet():
     '''
@@ -21,10 +23,7 @@ class Unet():
                                out_channels=self.config['out_channels'])
         print('Unet model initialized.')
         # define preprocess methods
-        self.transform_preprocess = torchvision.transforms.Compose([
-            torchvision.transforms.Resize((self.config['height_in'], self.config['width_in'])),
-            torchvision.transforms.ToTensor()
-        ])
+        self.transform_preprocess = transform_preprocess(config['height_in'], config['width_in'])
         # load weights
         self.weights_path = weights_path
         if self.weights_path:
@@ -46,22 +45,31 @@ class Unet():
         inference only, x can be either path to image or numpy array
         """
         if isinstance(x, str):
-            x = cv2.imread(x)
-        elif not isinstance(x, np.ndarray):
-            print('input should be a path to image or a numpy array')
-            return None
+            x = Image.open(x)
+        elif isinstance(x, np.ndarray):
+            x = Image.fromarray(x)
+        # set eval mode
         self.model.eval()
+
         x = self.preprocess(x)
         output = self.model(x)
+        output = self.postprocess(x)
+
         # set back to train mode to model if neccessary
         if self.is_training:
             self.model.train()
         return output
         
     def preprocess(self, x):
+        # x = np.transpose(x, (2, 0, 1))
+        # x = x / 255
         return self.transform_preprocess(x)
     
-    def postprocess(self, x):
+    def postprocess(self, x, resize=False):
+        x = np.argmax(x, axis=0) # axis 0 is channel axis
+        x = np.transpose(x, (1, 2, 0)) # (h, w, c)
+        if resize:
+            x = cv2.resize(x, (self.config['height_in'], self.config['width_in']))
         return x
 
 class UnetModel(nn.Module):
