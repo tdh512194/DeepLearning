@@ -1,0 +1,8 @@
+{
+    "in_channels": 3,
+    "out_channels": 2,
+    "height_in": 255,
+    "width_in": 255,
+    "height_out": 84,
+    "width_out": 84
+}

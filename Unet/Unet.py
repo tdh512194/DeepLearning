@@ -9,6 +9,7 @@ import numpy as np
 from utils import transform_preprocess
 from PIL import Image
 
+
 class Unet():
     '''
     U-net class
@@ -23,12 +24,14 @@ class Unet():
                                out_channels=self.config['out_channels'])
         print('Unet model initialized.')
         # define preprocess methods
-        self.transform_preprocess = transform_preprocess(config['height_in'], config['width_in'])
+        self.transform_preprocess = transform_preprocess(
+            self.config['height_in'], self.config['width_in'])
         # load weights
         self.weights_path = weights_path
         if self.weights_path:
             self.model.load_state_dict(torch.load(self.weights_path))
-            print('weights {} loaded.'.format(os.path.basename(self.weights_path)))
+            print('weights {} loaded.'.format(
+                os.path.basename(self.weights_path)))
         else:
             print('No weights added.')
         # set train or eval mode for layers such as Dropout and Batchnorm
@@ -59,18 +62,20 @@ class Unet():
         if self.is_training:
             self.model.train()
         return output
-        
+
     def preprocess(self, x):
         # x = np.transpose(x, (2, 0, 1))
         # x = x / 255
         return self.transform_preprocess(x)
-    
+
     def postprocess(self, x, resize=False):
-        x = np.argmax(x, axis=0) # axis 0 is channel axis
-        x = np.transpose(x, (1, 2, 0)) # (h, w, c)
+        x = np.argmax(x, axis=0)  # axis 0 is channel axis
+        x = np.transpose(x, (1, 2, 0))  # (h, w, c)
         if resize:
-            x = cv2.resize(x, (self.config['height_in'], self.config['width_in']))
+            x = cv2.resize(
+                x, (self.config['height_in'], self.config['width_in']))
         return x
+
 
 class UnetModel(nn.Module):
     '''
@@ -78,9 +83,10 @@ class UnetModel(nn.Module):
     '''
 
     def __init__(self, in_channels=3, out_channels=2):
-        super(Unet, self).__init__()
+        super(UnetModel, self).__init__()
         # Encode layers
-        self.conv_encode1 = self.down_sampling_block(in_channels, out_channels=64)
+        self.conv_encode1 = self.down_sampling_block(
+            in_channels, out_channels=64)
         self.maxpool1 = nn.MaxPool2d(kernel_size=2)
         self.conv_encode2 = self.down_sampling_block(64, 128)
         self.maxpool2 = nn.MaxPool2d(kernel_size=2)
@@ -97,7 +103,7 @@ class UnetModel(nn.Module):
             nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=3),
             nn.ReLU(),
             nn.BatchNorm2d(1024),
-            nn.ConvTranspose2d(in_channels=1024, out_channels=512, kernel_size=3, 
+            nn.ConvTranspose2d(in_channels=1024, out_channels=512, kernel_size=3,
                                stride=2, output_padding=1)
         )
 
@@ -122,23 +128,29 @@ class UnetModel(nn.Module):
         # Bottle neck
         botte_neck1 = self.botte_neck(encode_pool4)
         # Decode layer
-        concat_block4 = self.crop_and_concat(botte_neck1, encode_block4, crop=True)
+        concat_block4 = self.crop_and_concat(
+            botte_neck1, encode_block4, crop=True)
         decode_block4 = self.conv_decode4(concat_block4)
-        concat_block3 = self.crop_and_concat(decode_block4, encode_block3, crop=True)
+        concat_block3 = self.crop_and_concat(
+            decode_block4, encode_block3, crop=True)
         decode_block3 = self.conv_decode3(concat_block3)
-        concat_block2 = self.crop_and_concat(decode_block3, encode_block2, crop=True)
+        concat_block2 = self.crop_and_concat(
+            decode_block3, encode_block2, crop=True)
         decode_block2 = self.conv_decode2(concat_block2)
-        concat_block1 = self.crop_and_concat(decode_block2, encode_block1, crop=True)
+        concat_block1 = self.crop_and_concat(
+            decode_block2, encode_block1, crop=True)
         # Output layer
         output = self.output(concat_block1)
         return output
 
     def down_sampling_block(self, in_channels, out_channels, kernel_size=3):
         block = nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size),
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=out_channels, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(out_channels),
-            nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size),
+            nn.Conv2d(in_channels=out_channels,
+                      out_channels=out_channels, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(out_channels)
         )
@@ -148,33 +160,38 @@ class UnetModel(nn.Module):
         mid_channels = in_channels // 2
 
         block = nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=mid_channels, kernel_size=kernel_size),
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=mid_channels, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(mid_channels),
-            nn.Conv2d(in_channels=mid_channels, out_channels=mid_channels, kernel_size=kernel_size),
+            nn.Conv2d(in_channels=mid_channels,
+                      out_channels=mid_channels, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(mid_channels),
-            nn.ConvTranspose2d(in_channels=mid_channels, out_channels=out_channels, kernel_size=kernel_size, 
-                               stride=2, padding=1, output_padding=1)  
+            nn.ConvTranspose2d(in_channels=mid_channels, out_channels=out_channels, kernel_size=kernel_size,
+                               stride=2, padding=1, output_padding=1)
         )
         return block
-    
+
     def output_block(self, in_channels, out_channels, kernel_size=3):
         mid_channels = in_channels // 2
 
         block = nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=mid_channels, kernel_size=kernel_size),
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=mid_channels, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(mid_channels),
-            nn.Conv2d(in_channels=mid_channels, out_channels=mid_channels, kernel_size=kernel_size),
+            nn.Conv2d(in_channels=mid_channels,
+                      out_channels=mid_channels, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(mid_channels),
-            nn.Conv2d(in_channels=mid_channels, out_channels=out_channels, padding=1, kernel_size=kernel_size),
+            nn.Conv2d(in_channels=mid_channels, out_channels=out_channels,
+                      padding=1, kernel_size=kernel_size),
             nn.ReLU(),
             nn.BatchNorm2d(out_channels)
         )
         return block
-    
+
     def crop_and_concat(self, upsampled, crop_from, crop=False):
         """
         calculate the excessive size -> crop the encode block -> concat with the decode block
@@ -183,6 +200,11 @@ class UnetModel(nn.Module):
             # calculate excessive size of each side (/2)
             crop_size = (crop_from.size()[2] - upsampled.size()[2]) // 2
             # crop to the 2 last dimentions (left, right, top, bottom) as in torch.nn.F.pad()
-            crop_from = F.pad(crop_from, (-crop_size, -crop_size, -crop_size, -crop_size))
+            if crop_from.size()[2] % 2 == 0:  # even size
+                crop_from = F.pad(
+                    crop_from, (-crop_size, -crop_size, -crop_size, -crop_size))
+            else:  # odd size
+                crop_from = F.pad(
+                    crop_from, (-crop_size-1, -crop_size, -crop_size-1, -crop_size))
         block = torch.cat((crop_from, upsampled), dim=1)
         return block
